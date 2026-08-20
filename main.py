@@ -53,12 +53,12 @@ def main():
                 log_event("player_hit")
                 print(f"Game over!")
                 sys.exit()
-
+                
         for shot in shots:
             for asteroid in asteroids:
                 if shot.collides_with(asteroid):
                     log_event("asteroid_shot")
-                    asteroid.kill()
+                    asteroid.split()
                     shot.kill()
 
         for obj in drawable:
