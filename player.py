@@ -2,8 +2,9 @@
 import pygame
 
 from circleshape import CircleShape
-from constants import PLAYER_RADIUS, PLAYER_SHOOT_SPEED, PLAYER_SPEED, PLAYER_TURN_SPEED, PLAYER_SHOT_COOLDOWN_SECONDS
+from constants import PLAYER_RADIUS, PLAYER_SHOOT_SPEED, PLAYER_SPEED, PLAYER_TURN_SPEED, PLAYER_SHOT_COOLDOWN_SECONDS, PLAYER_ACCELERATION, PLAYER_MAX_SPEED, PLAYER_DRAG
 from shot import Shot
+from collisions import circle_triangle_collision
 
 
 class Player(CircleShape):
@@ -21,6 +22,9 @@ class Player(CircleShape):
         c = self.position - forward * self.radius + right
         return [a, b, c]
 
+    def collides_with(self, other) -> bool:
+        return circle_triangle_collision(other.position, other.radius, self.triangle())
+
     def rotate(self, dt: float):
         rotation = PLAYER_TURN_SPEED * dt
         self.rotation += rotation
@@ -28,17 +32,28 @@ class Player(CircleShape):
     def update(self, dt: float) -> None:
         keys = pygame.key.get_pressed()
         self.shot_cooldown -= dt
-        
+
         if keys[pygame.K_a]:
             self.rotate(-dt)
         if keys[pygame.K_d]:
             self.rotate(dt)
         if keys[pygame.K_w]:
-            self.move(dt)
-        if keys[pygame.K_s]:   
-            self.move(-dt)
+            self.accelerate(dt, 1)
+        if keys[pygame.K_s]:
+            self.accelerate(dt, -1)
         if keys[pygame.K_SPACE]:
             self.shoot()
+
+        drag_factor = pow(PLAYER_DRAG, dt)
+        self.velocity *= drag_factor
+        if self.velocity.length() > PLAYER_MAX_SPEED:
+            self.velocity.scale_to_length(PLAYER_MAX_SPEED)
+        self.position += self.velocity * dt
+        self.wrap()
+
+    def accelerate(self, dt: float, direction: int):
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+        self.velocity += forward * PLAYER_ACCELERATION * direction * dt
 
     def move(self, dt: float):
         unit_vector = pygame.Vector2(0, 1)
