@@ -13,7 +13,9 @@ class Player(CircleShape):
         self.rotation = 0.0
         self.shot_cooldown = 0.0
         self.invulnerable = 0.0
-        
+        self.fire_rate_timer = 0.0
+        self.fire_rate_mult = 1.0
+        self.has_shield = False
         
     def triangle(self) -> list[pygame.Vector2]:
         forward = pygame.Vector2(0, 1).rotate(self.rotation)
@@ -31,6 +33,8 @@ class Player(CircleShape):
         if self.invulnerable > 0 and int(self.invulnerable * 10) % 2 == 0:
             color = "white"
         pygame.draw.polygon(screen, color, self.triangle(), LINE_WIDTH)
+        if self.has_shield:
+            pygame.draw.circle(screen, "purple", self.position, self.radius + 6, 2)
 
     def rotate(self, dt: float):
         rotation = PLAYER_TURN_SPEED * dt
@@ -39,8 +43,13 @@ class Player(CircleShape):
     def update(self, dt: float) -> None:
         keys = pygame.key.get_pressed()
         self.shot_cooldown -= dt
+
         if self.invulnerable > 0:
             self.invulnerable -= dt
+        if self.fire_rate_timer > 0:
+            self.fire_rate_timer -= dt
+            if self.fire_rate_timer <= 0:
+                self.fire_rate_mult = 1.0
 
         if keys[pygame.K_a]:
             self.rotate(-dt)
@@ -73,7 +82,7 @@ class Player(CircleShape):
     def shoot(self):
         if self.shot_cooldown > 0:
             return
-
+        
         shot = Shot(self.position.x, self.position.y)
         shot.velocity = pygame.Vector2(0, 1).rotate(self.rotation) * PLAYER_SHOOT_SPEED
-        self.shot_cooldown = PLAYER_SHOT_COOLDOWN_SECONDS
+        self.shot_cooldown = PLAYER_SHOT_COOLDOWN_SECONDS * self.fire_rate_mult
