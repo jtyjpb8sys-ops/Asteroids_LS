@@ -28,6 +28,8 @@ class Game():
         self.asteroid_field = AsteroidField()
         self.player = Player(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
 
+        self.lives = 3
+        
     def update(self, dt: float) -> None:
         self.updatable.update(dt)
         self.handle_collisions()
@@ -42,14 +44,25 @@ class Game():
 
     def handle_collisions(self) -> None:
         for asteroid in self.asteroids:
-            if self.player.collides_with(asteroid):
+            if self.player.invulnerable <= 0 and self.player.collides_with(asteroid):
                 log_event("player_hit")
-                print("Game over!")
-                pygame.quit()
-                sys.exit()
+                self.lives -= 1
+                if self.lives <= 0:
+                    print("Game over!")
+                    pygame.quit()
+                    sys.exit()
+                else:
+                    self.respawn_player()
+                break   # stop checking asteroids this frame; player has moved to center
 
             for shot in self.shots:
                 if shot.collides_with(asteroid):
                     log_event("asteroid_shot")
                     shot.kill()
                     asteroid.split()
+
+    def respawn_player(self) -> None:
+        self.player.position = pygame.Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+        self.player.velocity = pygame.Vector2(0, 0)
+        self.player.rotation = 0.0
+        self.player.invulnerable = 2.0

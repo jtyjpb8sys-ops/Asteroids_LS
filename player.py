@@ -2,7 +2,7 @@
 import pygame
 
 from circleshape import CircleShape
-from constants import PLAYER_RADIUS, PLAYER_SHOOT_SPEED, PLAYER_SPEED, PLAYER_TURN_SPEED, PLAYER_SHOT_COOLDOWN_SECONDS, PLAYER_ACCELERATION, PLAYER_MAX_SPEED, PLAYER_DRAG
+from constants import PLAYER_RADIUS, PLAYER_SHOOT_SPEED, PLAYER_SPEED, PLAYER_TURN_SPEED, PLAYER_SHOT_COOLDOWN_SECONDS, PLAYER_ACCELERATION, PLAYER_MAX_SPEED, PLAYER_DRAG, LINE_WIDTH
 from shot import Shot
 from collisions import circle_triangle_collision
 
@@ -12,8 +12,9 @@ class Player(CircleShape):
         super().__init__(x, y, PLAYER_RADIUS)
         self.rotation = 0.0
         self.shot_cooldown = 0.0
+        self.invulnerable = 0.0
         
-        # in the Player class
+        
     def triangle(self) -> list[pygame.Vector2]:
         forward = pygame.Vector2(0, 1).rotate(self.rotation)
         right = pygame.Vector2(0, 1).rotate(self.rotation + 90) * self.radius / 1.5
@@ -25,6 +26,12 @@ class Player(CircleShape):
     def collides_with(self, other) -> bool:
         return circle_triangle_collision(other.position, other.radius, self.triangle())
 
+    def draw(self, screen: pygame.Surface) -> None:
+        color = "green"
+        if self.invulnerable > 0 and int(self.invulnerable * 10) % 2 == 0:
+            color = "white"
+        pygame.draw.polygon(screen, color, self.triangle(), LINE_WIDTH)
+
     def rotate(self, dt: float):
         rotation = PLAYER_TURN_SPEED * dt
         self.rotation += rotation
@@ -32,6 +39,8 @@ class Player(CircleShape):
     def update(self, dt: float) -> None:
         keys = pygame.key.get_pressed()
         self.shot_cooldown -= dt
+        if self.invulnerable > 0:
+            self.invulnerable -= dt
 
         if keys[pygame.K_a]:
             self.rotate(-dt)
