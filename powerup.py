@@ -8,12 +8,12 @@ POWERUP_WEIGHTS = [
     ("shield", 30),
     ("fire_rate", 30),
     ("weapon", 50),
-    ("bomb", 20),
+    ("bomb", 15),
 ]
 
 POWERUP_COLORS = {
     "shield": "purple",
-    "speed": "blue",
+    "speed": "navy",
     "weapon": "orange",
     "bomb": "red",
 }

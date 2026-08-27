@@ -10,6 +10,7 @@ from shot import Shot
 from logger import log_state, log_event
 from constants import (
     SCREEN_WIDTH,
+    LINE_WIDTH,
     SCREEN_HEIGHT,
     ASTEROID_MIN_RADIUS,
     POWERUP_DROP_CHANCE,
@@ -25,6 +26,9 @@ class Game():
         self.asteroids = pygame.sprite.Group()
         self.shots = pygame.sprite.Group()
 
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+
         Player.containers = (self.updatable, self.drawable)
         Asteroid.containers = (self.updatable, self.drawable, self.asteroids)
         Shot.containers = (self.updatable, self.drawable, self.shots)
@@ -37,6 +41,46 @@ class Game():
 
         self.elapsed = 0.0          
         self.spawn_timer = 0.0
+        self.score = 0
+
+    def draw_hud(self, screen: pygame.Surface) -> None:
+        bar_h = 40
+
+        for i in range(self.lives):
+            cx = 24 + i * 26
+            cy = bar_h // 2
+            pts = [
+                pygame.Vector2(cx, cy - 9),
+                pygame.Vector2(cx - 7, cy + 8),
+                pygame.Vector2(cx + 7, cy + 8),
+            ]
+            pygame.draw.polygon(screen, "green", pts, LINE_WIDTH)
+
+        mins = int(self.elapsed) // 60
+        secs = int(self.elapsed) % 60
+        score_surf = self.font.render(f"{self.score}", True, "white")
+        screen.blit(score_surf, (SCREEN_WIDTH // 2 - score_surf.get_width() // 2, 6))
+        time_surf = self.small_font.render(f"{mins}:{secs:02d}", True, "grey")
+        screen.blit(time_surf, (SCREEN_WIDTH // 2 - time_surf.get_width() // 2, 6 + score_surf.get_height()))
+
+        for i in range(self.bombs):
+            cx = SCREEN_WIDTH - 20 - i * 22
+            pygame.draw.circle(screen, "red", (cx, bar_h // 2), 7)
+
+        buffs = []
+        if self.player.has_shield:
+            buffs.append(("SHIELD", "cyan"))
+        if self.player.weapon_timer > 0:
+            buffs.append((f"{self.player.weapon.upper()} {self.player.weapon_timer:.0f}", "orange"))
+        if self.player.fire_rate_timer > 0:
+            buffs.append((f"RAPID {self.player.fire_rate_timer:.0f}", "yellow"))
+
+        bx = SCREEN_WIDTH - 20 - self.bombs * 22 - 20
+        for label, color in buffs:
+            s = self.small_font.render(label, True, color)
+            bx -= s.get_width() + 12
+            screen.blit(s, (bx, bar_h // 2 - s.get_height() // 2))
+
 
     def current_concurrent_target(self) -> int:
         from constants import DIFFICULTY_BASE_CONCURRENT, DIFFICULTY_CONCURRENT_PER_MIN
@@ -48,7 +92,6 @@ class Game():
         minutes = self.elapsed / 60.0
         return 1.0 + minutes * DIFFICULTY_SPEED_PER_MIN
 
-    
     def update(self, dt: float) -> None:
         self.elapsed += dt
         self.updatable.update(dt)
@@ -56,10 +99,10 @@ class Game():
         self.handle_collisions()
         self.handle_pickups()
     
-
     def draw(self, screen: pygame.Surface) -> None:
         for obj in self.drawable:
             obj.draw(screen)
+        self.draw_hud(screen)
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.KEYDOWN and event.key == pygame.K_b:
@@ -88,6 +131,7 @@ class Game():
                 if shot.collides_with(asteroid):
                     log_event("asteroid_shot")
                     shot.kill()
+                    self.score += 10
                     if asteroid.radius <= ASTEROID_MIN_RADIUS and random.random() < POWERUP_DROP_CHANCE:
                         self.spawn_powerup(asteroid.position)
                     asteroid.split()
