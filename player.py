@@ -16,6 +16,8 @@ class Player(CircleShape):
         self.fire_rate_timer = 0.0
         self.fire_rate_mult = 1.0
         self.has_shield = False
+        self.weapon = "default"
+        self.weapon_timer = 0.0
         
     def triangle(self) -> list[pygame.Vector2]:
         forward = pygame.Vector2(0, 1).rotate(self.rotation)
@@ -43,6 +45,11 @@ class Player(CircleShape):
     def update(self, dt: float) -> None:
         keys = pygame.key.get_pressed()
         self.shot_cooldown -= dt
+
+        if self.weapon_timer > 0:
+            self.weapon_timer -= dt
+            if self.weapon_timer <= 0:
+                self.weapon = "default"
 
         if self.invulnerable > 0:
             self.invulnerable -= dt
@@ -83,6 +90,31 @@ class Player(CircleShape):
         if self.shot_cooldown > 0:
             return
         
-        shot = Shot(self.position.x, self.position.y)
-        shot.velocity = pygame.Vector2(0, 1).rotate(self.rotation) * PLAYER_SHOOT_SPEED
-        self.shot_cooldown = PLAYER_SHOT_COOLDOWN_SECONDS * self.fire_rate_mult
+        from constants import (
+            SHOTGUN_PELLETS, SHOTGUN_SPREAD, SHOTGUN_LIFETIME, SHOTGUN_COOLDOWN,
+            DOUBLE_OFFSET, DOUBLE_LIFETIME, DOUBLE_COOLDOWN,
+        )
+        forward = pygame.Vector2(0, 1).rotate(self.rotation)
+
+        if self.weapon == "shotgun":
+            for i in range(SHOTGUN_PELLETS):
+                # fan the pellets across the spread
+                offset = (i / (SHOTGUN_PELLETS - 1) - 0.5) * SHOTGUN_SPREAD
+                shot = Shot(self.position.x, self.position.y, SHOTGUN_LIFETIME)
+                shot.velocity = pygame.Vector2(0, 1).rotate(self.rotation + offset) * PLAYER_SHOOT_SPEED
+            cooldown = SHOTGUN_COOLDOWN
+
+        elif self.weapon == "double":
+            right = pygame.Vector2(forward.y, -forward.x)  # perpendicular
+            for side in (-1, 1):
+                pos = self.position + right * (DOUBLE_OFFSET * side)
+                shot = Shot(pos.x, pos.y, DOUBLE_LIFETIME)
+                shot.velocity = forward * PLAYER_SHOOT_SPEED
+            cooldown = DOUBLE_COOLDOWN
+
+        else:  # default single shot
+            shot = Shot(self.position.x, self.position.y)
+            shot.velocity = forward * PLAYER_SHOOT_SPEED
+            cooldown = PLAYER_SHOT_COOLDOWN_SECONDS
+
+        self.shot_cooldown = cooldown * self.fire_rate_mult

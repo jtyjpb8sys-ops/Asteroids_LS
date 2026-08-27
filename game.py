@@ -33,35 +33,44 @@ class Game():
         self.player = Player(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
 
         self.lives = 3
+        self.bombs = 0
 
-        self.wave = 0
-        self.kills_this_wave = 0
-        self.quota = 0
-        self.concurrent_target = 0
+        self.elapsed = 0.0          
         self.spawn_timer = 0.0
-        self.start_next_wave()
-        
+
+    def current_concurrent_target(self) -> int:
+        from constants import DIFFICULTY_BASE_CONCURRENT, DIFFICULTY_CONCURRENT_PER_MIN
+        minutes = self.elapsed / 60.0
+        return int(DIFFICULTY_BASE_CONCURRENT + minutes * DIFFICULTY_CONCURRENT_PER_MIN)
+
+    def current_speed_mult(self) -> float:
+        from constants import DIFFICULTY_SPEED_PER_MIN
+        minutes = self.elapsed / 60.0
+        return 1.0 + minutes * DIFFICULTY_SPEED_PER_MIN
+
+    
     def update(self, dt: float) -> None:
+        self.elapsed += dt
         self.updatable.update(dt)
         self.update_spawning(dt)
         self.handle_collisions()
         self.handle_pickups()
-        if self.kills_this_wave >= self.quota and len(self.asteroids) == 0:
-            self.start_next_wave()
+    
 
     def draw(self, screen: pygame.Surface) -> None:
         for obj in self.drawable:
             obj.draw(screen)
 
     def handle_event(self, event: pygame.event.Event) -> None:
-        pass
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_b:
+            self.deploy_bomb()
 
     def handle_collisions(self) -> None:
         for asteroid in self.asteroids:
             if self.player.invulnerable <= 0 and self.player.collides_with(asteroid):
                 if self.player.has_shield:
                     self.player.has_shield = False
-                    self.player.invulnerable = 1.0   # brief grace so you can escape
+                    self.player.invulnerable = 1.0   
                     log_event("shield_absorbed")
                     asteroid.split()
                     break
@@ -82,7 +91,6 @@ class Game():
                     if asteroid.radius <= ASTEROID_MIN_RADIUS and random.random() < POWERUP_DROP_CHANCE:
                         self.spawn_powerup(asteroid.position)
                     asteroid.split()
-                    self.kills_this_wave += 1
 
     def respawn_player(self) -> None:
         self.player.position = pygame.Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
@@ -91,7 +99,6 @@ class Game():
         self.player.invulnerable = 2.0
 
     def spawn_asteroid(self) -> None:
-        import random
         from constants import (
             ASTEROID_MIN_RADIUS, ASTEROID_KINDS, ASTEROID_MAX_RADIUS,
             SCREEN_WIDTH, SCREEN_HEIGHT,
@@ -103,7 +110,7 @@ class Game():
             (pygame.Vector2(0, -1), lambda x: pygame.Vector2(x * SCREEN_WIDTH, SCREEN_HEIGHT + ASTEROID_MAX_RADIUS)),
         ]
         edge = random.choice(edges)
-        speed = random.randint(40, 100) * (1 + self.wave * 0.05)  
+        speed = random.randint(40, 100) * self.current_speed_mult()
         velocity = edge[0] * speed
         velocity = velocity.rotate(random.randint(-30, 30))
         position = edge[1](random.uniform(0, 1))
@@ -111,17 +118,6 @@ class Game():
         asteroid = Asteroid(position.x, position.y, ASTEROID_MIN_RADIUS * kind)
         asteroid.velocity = velocity
 
-    def start_next_wave(self) -> None:
-        from constants import (
-            WAVE_BASE_CONCURRENT, WAVE_BASE_QUOTA,
-            WAVE_CONCURRENT_GROWTH, WAVE_QUOTA_GROWTH,
-            )
-        self.wave += 1
-        self.kills_this_wave = 0
-        self.concurrent_target = WAVE_BASE_CONCURRENT + (self.wave - 1) * WAVE_CONCURRENT_GROWTH
-        self.quota = WAVE_BASE_QUOTA + (self.wave - 1) * WAVE_QUOTA_GROWTH
-        log_event("wave_start", wave=self.wave)
-        print(f"Wave {self.wave}  (quota {self.quota}, concurrent {self.concurrent_target})")
 
     def update_spawning(self, dt: float) -> None:
         from constants import ASTEROID_SPAWN_INTERVAL
@@ -130,11 +126,9 @@ class Game():
             return
         self.spawn_timer = 0.0
 
-        remaining_to_spawn = self.quota - self.kills_this_wave - len(self.asteroids)
-        
-        while len(self.asteroids) < self.concurrent_target and remaining_to_spawn > 0:
+        target = self.current_concurrent_target()
+        while len(self.asteroids) < target:
             self.spawn_asteroid()
-            remaining_to_spawn -= 1
 
     def spawn_powerup(self, position: pygame.Vector2) -> None:
         kind = random_powerup_kind()
@@ -156,6 +150,19 @@ class Game():
         elif kind == "shield":
             self.player.has_shield = True
         elif kind == "weapon":
-            pass   # next piece
+            from constants import WEAPON_BUFF_DURATION
+            self.player.weapon = random.choice(["shotgun", "double"])
+            self.player.weapon_timer = WEAPON_BUFF_DURATION
+            log_event("weapon_equipped", weapon=self.player.weapon)
         elif kind == "bomb":
-            pass   # piece after
+            from constants import MAX_BOMBS
+            self.bombs = min(self.bombs + 1, MAX_BOMBS)
+            log_event("bomb_collected", bombs = self.bombs)
+
+    def deploy_bomb(self) -> None:
+        if self.bombs <= 0:
+            return
+        self.bombs -= 1
+        log_event("bomb_deployed")
+        for asteroid in list(self.asteroids):
+            asteroid.kill()
