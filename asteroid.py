@@ -1,5 +1,6 @@
 
 import random
+import math
 
 import pygame
 
@@ -10,9 +11,17 @@ from logger import log_event
 class Asteroid(CircleShape):
     def __init__(self, x: float, y: float, radius: float) -> None:
         super().__init__(x, y, radius)
+        self.shape = []
+        self.color = "white"
+        num_points = random.randint(8, 12)
+        for i in range(num_points):
+            angle = (i / num_points) * 2 * math.pi
+            jitter = random.uniform(0.75, 1.15)   
+            self.shape.append(pygame.Vector2(math.cos(angle), math.sin(angle)) * jitter)
 
     def draw(self, screen: pygame.surface) -> None:
-        pygame.draw.circle(screen, "white", self.position, self.radius, LINE_WIDTH)
+        points = [self.position + p * self.radius for p in self.shape]
+        pygame.draw.polygon(screen, self.color, points, LINE_WIDTH)
 
     def update(self, dt: float) -> None:
         self.position += self.velocity * dt

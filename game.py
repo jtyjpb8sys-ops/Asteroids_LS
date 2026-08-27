@@ -3,6 +3,7 @@ import pygame
 import sys
 import random
 
+from explosion import Particle
 from powerup import PowerUp, random_powerup_kind
 from player import Player
 from asteroid import Asteroid
@@ -14,6 +15,7 @@ from constants import (
     SCREEN_HEIGHT,
     ASTEROID_MIN_RADIUS,
     POWERUP_DROP_CHANCE,
+    BOMB_PENALTY
 )
 
 class Game():
@@ -26,6 +28,14 @@ class Game():
         self.asteroids = pygame.sprite.Group()
         self.shots = pygame.sprite.Group()
 
+        self.background = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.background.fill("black")
+        for _ in range(150):
+            x = random.randint(0, SCREEN_WIDTH)
+            y = random.randint(0, SCREEN_HEIGHT)
+            brightness = random.randint(80, 255)
+            self.background.set_at((x, y), (brightness, brightness, brightness))
+        
         self.font = pygame.font.Font(None, 36)
         self.small_font = pygame.font.Font(None, 24)
 
@@ -35,6 +45,8 @@ class Game():
         PowerUp.containers = (self.updatable, self.drawable, self.powerups)
         
         self.player = Player(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+
+        self.particles = []
 
         self.lives = 3
         self.bombs = 0
@@ -98,10 +110,16 @@ class Game():
         self.update_spawning(dt)
         self.handle_collisions()
         self.handle_pickups()
+        for p in self.particles:
+            p.update(dt)
+        self.particles = [p for p in self.particles if not p.dead]
     
     def draw(self, screen: pygame.Surface) -> None:
+        screen.blit(self.background, (0, 0))
         for obj in self.drawable:
             obj.draw(screen)
+        for p in self.particles:
+            p.draw(screen)
         self.draw_hud(screen)
 
     def handle_event(self, event: pygame.event.Event) -> None:
@@ -128,10 +146,12 @@ class Game():
                 break
 
             for shot in self.shots:
-                if shot.collides_with(asteroid):
+               if shot.collides_with(asteroid):
                     log_event("asteroid_shot")
                     shot.kill()
-                    self.score += 10
+                    self.score += self.asteroid_score(asteroid.radius)
+                    burst = int(asteroid.radius / 3)
+                    self.spawn_explosion(asteroid.position, asteroid.color, burst)
                     if asteroid.radius <= ASTEROID_MIN_RADIUS and random.random() < POWERUP_DROP_CHANCE:
                         self.spawn_powerup(asteroid.position)
                     asteroid.split()
@@ -190,13 +210,13 @@ class Game():
         from constants import FIRE_RATE_BUFF_DURATION, FIRE_RATE_BUFF_MULTIPLIER
         if kind == "fire_rate":
             self.player.fire_rate_mult = FIRE_RATE_BUFF_MULTIPLIER
-            self.player.fire_rate_timer = FIRE_RATE_BUFF_DURATION
+            self.player.fire_rate_timer = min(self.player.fire_rate_timer + FIRE_RATE_BUFF_DURATION, 30.0)
         elif kind == "shield":
             self.player.has_shield = True
         elif kind == "weapon":
             from constants import WEAPON_BUFF_DURATION
             self.player.weapon = random.choice(["shotgun", "double"])
-            self.player.weapon_timer = WEAPON_BUFF_DURATION
+            self.player.weapon_timer = min(self.player.weapon_timer + WEAPON_BUFF_DURATION, 30.0)
             log_event("weapon_equipped", weapon=self.player.weapon)
         elif kind == "bomb":
             from constants import MAX_BOMBS
@@ -207,6 +227,21 @@ class Game():
         if self.bombs <= 0:
             return
         self.bombs -= 1
+        self.score = max(0, self.score - BOMB_PENALTY)
         log_event("bomb_deployed")
         for asteroid in list(self.asteroids):
+            self.spawn_explosion(asteroid.position, asteroid.color)
             asteroid.kill()
+
+    def asteroid_score(self, radius: float) -> int:
+        from constants import SCORE_LARGE, SCORE_MEDIUM, SCORE_SMALL, ASTEROID_MIN_RADIUS
+        if radius <= ASTEROID_MIN_RADIUS:
+            return SCORE_SMALL
+        elif radius <= ASTEROID_MIN_RADIUS * 2:
+            return SCORE_MEDIUM
+        else:
+            return SCORE_LARGE
+
+    def spawn_explosion(self, position, color="white", count=12) -> None:
+        for _ in range(count):
+            self.particles.append(Particle(position, color))

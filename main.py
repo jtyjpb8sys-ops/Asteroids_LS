@@ -27,7 +27,7 @@ def main():
                 return
             game.handle_event(event)
 
-        screen.fill("black")
+    
         game.update(dt)
         game.draw(screen)
         pygame.display.flip()

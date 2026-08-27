@@ -5,15 +5,15 @@ from circleshape import CircleShape
 from constants import POWERUP_RADIUS, POWERUP_LIFETIME_SECONDS, POWERUP_DRIFT_SPEED, LINE_WIDTH
 
 POWERUP_WEIGHTS = [
-    ("shield", 30),
-    ("fire_rate", 30),
+    ("shield", 20),
+    ("fire_rate", 50),
     ("weapon", 50),
-    ("bomb", 15),
+    ("bomb", 25),
 ]
 
 POWERUP_COLORS = {
     "shield": "purple",
-    "speed": "navy",
+    "fire_rate": "blue",
     "weapon": "orange",
     "bomb": "red",
 }
