@@ -15,8 +15,7 @@ from constants import (
     LINE_WIDTH,
     SCREEN_HEIGHT,
     ASTEROID_MIN_RADIUS,
-    POWERUP_DROP_CHANCE,
-    BOMB_PENALTY
+    POWERUP_DROP_CHANCE
 )
 
 class Game():
@@ -191,7 +190,7 @@ class Game():
         elif self.state == "game_over":
             if event.key == pygame.K_r:
                 self.restart()
-                
+
     def restart(self) -> None:
         for group in (self.updatable, self.drawable, self.asteroids, self.shots, self.powerups):
             group.empty()
@@ -282,7 +281,9 @@ class Game():
             self.spawn_asteroid()
 
     def spawn_powerup(self, position: pygame.Vector2) -> None:
-        kind = random_powerup_kind()
+        from constants import MAX_BOMBS
+        exclude = ("bomb",) if self.bombs > 0 else ()
+        kind = random_powerup_kind(exclude)
         PowerUp(position.x, position.y, kind)
         log_event("powerup_drop", kind=kind)
 
@@ -299,7 +300,10 @@ class Game():
             self.player.fire_rate_mult = FIRE_RATE_BUFF_MULTIPLIER
             self.player.fire_rate_timer = min(self.player.fire_rate_timer + FIRE_RATE_BUFF_DURATION, 30.0)
         elif kind == "shield":
-            self.player.has_shield = True
+            if self.player.has_shield:
+                self.score += 50          
+            else:
+                self.player.has_shield = True
         elif kind == "weapon":
             from constants import WEAPON_BUFF_DURATION
             self.player.weapon = random.choice(["shotgun", "double"])
@@ -314,7 +318,6 @@ class Game():
         if self.bombs <= 0:
             return
         self.bombs -= 1
-        self.score = max(0, self.score - BOMB_PENALTY)
         log_event("bomb_deployed")
         for asteroid in list(self.asteroids):
             self.spawn_explosion(asteroid.position, asteroid.color)

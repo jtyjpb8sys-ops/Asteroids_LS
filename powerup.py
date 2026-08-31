@@ -6,9 +6,9 @@ from constants import POWERUP_RADIUS, POWERUP_LIFETIME_SECONDS, POWERUP_DRIFT_SP
 
 POWERUP_WEIGHTS = [
     ("shield", 20),
-    ("fire_rate", 50),
+    ("fire_rate", 40),
     ("weapon", 50),
-    ("bomb", 25),
+    ("bomb", 5),
 ]
 
 POWERUP_COLORS = {
@@ -19,9 +19,10 @@ POWERUP_COLORS = {
 }
 
 
-def random_powerup_kind() -> str:
-    kinds = [k for k, _ in POWERUP_WEIGHTS]
-    weights = [w for _, w in POWERUP_WEIGHTS]
+def random_powerup_kind(exclude=()) -> str:
+    pool = [(k, w) for k, w in POWERUP_WEIGHTS if k not in exclude]
+    kinds = [k for k, _ in pool]
+    weights = [w for _, w in pool]
     return random.choices(kinds, weights=weights, k=1)[0]
 
 
