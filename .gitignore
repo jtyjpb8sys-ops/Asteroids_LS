@@ -7,6 +7,7 @@ wheels/
 *.egg-info
 game_state.jsonl
 game_events.jsonl
+leaderboard.json
 
 # Virtual environments
 .venv
