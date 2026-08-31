@@ -3,6 +3,7 @@ import pygame
 import sys
 import random
 
+from leaderboard import is_high_score, add_score, top_scores
 from explosion import Particle
 from powerup import PowerUp, random_powerup_kind
 from player import Player
@@ -21,6 +22,9 @@ from constants import (
 class Game():
     def __init__(self, screen: pygame.Surface) -> None:
         self.screen = screen
+
+        self.state = "playing"
+        self.name_entry = ""      
 
         self.powerups = pygame.sprite.Group()
         self.updatable = pygame.sprite.Group()
@@ -105,6 +109,8 @@ class Game():
         return 1.0 + minutes * DIFFICULTY_SPEED_PER_MIN
 
     def update(self, dt: float) -> None:
+        if self.state != "playing":
+            return
         self.elapsed += dt
         self.updatable.update(dt)
         self.update_spawning(dt)
@@ -120,11 +126,84 @@ class Game():
             obj.draw(screen)
         for p in self.particles:
             p.draw(screen)
-        self.draw_hud(screen)
+
+        if self.state == "playing":
+            self.draw_hud(screen)
+        elif self.state == "enter_name":
+            self.draw_enter_name(screen)
+        elif self.state == "game_over":
+            self.draw_game_over(screen)
+
+    def draw_enter_name(self, screen: pygame.Surface) -> None:
+        cx = SCREEN_WIDTH // 2
+        title = self.font.render("NEW HIGH SCORE!", True, "yellow")
+        screen.blit(title, (cx - title.get_width() // 2, 180))
+
+        score_surf = self.font.render(f"Score: {self.score}", True, "white")
+        screen.blit(score_surf, (cx - score_surf.get_width() // 2, 230))
+
+        prompt = self.small_font.render("Enter your initials:", True, "grey")
+        screen.blit(prompt, (cx - prompt.get_width() // 2, 300))
+
+        display = self.name_entry + "_" * (3 - len(self.name_entry))
+        initials = pygame.font.Font(None, 96).render(" ".join(display), True, "cyan")
+        screen.blit(initials, (cx - initials.get_width() // 2, 340))
+
+    def draw_game_over(self, screen: pygame.Surface) -> None:
+        cx = SCREEN_WIDTH // 2
+        title = self.font.render("GAME OVER", True, "red")
+        screen.blit(title, (cx - title.get_width() // 2, 100))
+
+        score_surf = self.small_font.render(f"Your score: {self.score}", True, "white")
+        screen.blit(score_surf, (cx - score_surf.get_width() // 2, 145))
+
+        header = self.font.render("LEADERBOARD", True, "yellow")
+        screen.blit(header, (cx - header.get_width() // 2, 200))
+
+        y = 250
+        for i, entry in enumerate(self.scores):
+            line = f"{i + 1:2d}.  {entry['name']:<3}   {entry['score']}"
+            color = "cyan" if entry["score"] == self.score else "white"
+            row = self.small_font.render(line, True, color)
+            screen.blit(row, (cx - 100, y))
+            y += 30
+
+        prompt = self.small_font.render("Press R to play again", True, "grey")
+        screen.blit(prompt, (cx - prompt.get_width() // 2, y + 20))
 
     def handle_event(self, event: pygame.event.Event) -> None:
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_b:
-            self.deploy_bomb()
+        if event.type != pygame.KEYDOWN:
+            return
+
+        if self.state == "playing":
+            if event.key == pygame.K_b:
+                self.deploy_bomb()
+
+        elif self.state == "enter_name":
+            if event.key == pygame.K_BACKSPACE:
+                self.name_entry = self.name_entry[:-1]
+            elif event.key == pygame.K_RETURN and len(self.name_entry) > 0:
+                self.scores = add_score(self.name_entry, self.score)
+                self.state = "game_over"
+            elif len(self.name_entry) < 3 and event.unicode.isalpha():
+                self.name_entry += event.unicode.upper()
+
+        elif self.state == "game_over":
+            if event.key == pygame.K_r:
+                self.restart()
+                
+    def restart(self) -> None:
+        for group in (self.updatable, self.drawable, self.asteroids, self.shots, self.powerups):
+            group.empty()
+        self.particles = []
+        self.player = Player(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+        self.lives = 3
+        self.bombs = 0
+        self.score = 0
+        self.elapsed = 0.0
+        self.spawn_timer = 0.0
+        self.name_entry = ""
+        self.state = "playing"
 
     def handle_collisions(self) -> None:
         for asteroid in self.asteroids:
@@ -138,9 +217,8 @@ class Game():
                 log_event("player_hit")
                 self.lives -= 1
                 if self.lives <= 0:
-                    print("Game over!")
-                    pygame.quit()
-                    sys.exit()
+                    self.game_over()
+                    return
                 else:
                     self.respawn_player()
                 break
@@ -161,6 +239,15 @@ class Game():
         self.player.velocity = pygame.Vector2(0, 0)
         self.player.rotation = 0.0
         self.player.invulnerable = 2.0
+
+    def game_over(self) -> None:
+        log_event("game_over", score=self.score)
+        if is_high_score(self.score):
+            self.state = "enter_name"
+            self.name_entry = ""
+        else:
+            self.scores = top_scores()
+            self.state = "game_over"
 
     def spawn_asteroid(self) -> None:
         from constants import (
